@@ -4,24 +4,11 @@ import atexit
 import builtins
 import copy
 import functools
-import jinja2
 import os
 import re
 from importlib import import_module
 from pathlib import Path
-from typing import Mapping, MutableMapping, Optional, Sequence, Tuple
-
-import tomlkit
-from dunamai import (
-    bump_version,
-    check_version,
-    serialize_pep440,
-    serialize_pvp,
-    serialize_semver,
-    Style,
-    Vcs,
-    Version,
-)
+from typing import Any, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 _VERSION_PATTERN = r"""
     (?x)                                                (?# ignore whitespace)
@@ -30,13 +17,17 @@ _VERSION_PATTERN = r"""
     (\+(?P<tagged_metadata>.+))?$                       (?# +linux)
 """.strip()
 
+# This is a placeholder for type hint docs since the actual type can't be
+# imported yet.
+_DUNAMAI_VERSION_ANY = Any
+
 
 class _ProjectState:
     def __init__(
         self,
         path: Path = None,
         original_version: str = None,
-        version: Tuple[Version, str] = None,
+        version: Tuple[_DUNAMAI_VERSION_ANY, str] = None,
         substitutions: MutableMapping[Path, str] = None,
     ) -> None:
         self.path = path
@@ -135,6 +126,8 @@ def _get_pyproject_path(start: Path = None) -> Optional[Path]:
 
 
 def get_config(start: Path = None) -> Mapping:
+    import tomlkit
+
     pyproject_path = _get_pyproject_path(start)
     if pyproject_path is None:
         return _default_config()["tool"]["poetry-dynamic-versioning"]
@@ -143,7 +136,9 @@ def get_config(start: Path = None) -> Mapping:
     return result
 
 
-def _bump_version_per_config(version: Version, bump: bool) -> Version:
+def _bump_version_per_config(version: _DUNAMAI_VERSION_ANY, bump: bool) -> _DUNAMAI_VERSION_ANY:
+    from dunamai import bump_version
+
     if not bump or version.distance == 0:
         return version
 
@@ -160,7 +155,19 @@ def _bump_version_per_config(version: Version, bump: bool) -> Version:
     return version
 
 
-def _get_version(config: Mapping) -> Tuple[Version, str]:
+def _get_version(config: Mapping) -> Tuple[_DUNAMAI_VERSION_ANY, str]:
+    import jinja2
+    from dunamai import (
+        bump_version,
+        check_version,
+        serialize_pep440,
+        serialize_pvp,
+        serialize_semver,
+        Style,
+        Vcs,
+        Version,
+    )
+
     vcs = Vcs(config["vcs"])
     style = config["style"]
     if style is not None:
@@ -238,6 +245,8 @@ def _substitute_version(
 
 
 def _apply_version(version: str, config: Mapping, pyproject_path: Path) -> str:
+    import tomlkit
+
     pyproject = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
     if pyproject["tool"]["poetry"]["version"] != version:
         pyproject["tool"]["poetry"]["version"] = version
@@ -264,6 +273,8 @@ def _apply_version(version: str, config: Mapping, pyproject_path: Path) -> str:
 
 
 def _revert_version() -> None:
+    import tomlkit
+
     for project, state in _state.projects.items():
         if state.original_version and state.version and state.original_version != state.version[1]:
             pyproject_path = _get_pyproject_path(state.path)
@@ -304,6 +315,8 @@ def _patch_poetry_create(factory_mod) -> None:
 
     @functools.wraps(original_poetry_create)
     def alt_poetry_create(cls, *args, **kwargs):
+        import tomlkit
+
         instance = original_poetry_create(cls, *args, **kwargs)
 
         if not _state.patched_poetry_command_run:

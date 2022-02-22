@@ -55,10 +55,7 @@ class _State:
         self.original_import_func = builtins.__import__
         self.cli_mode = cli_mode
 
-        if projects is None:
-            self.projects = {}  # type: MutableMapping[str, _ProjectState]
-        else:
-            self.projects = projects
+        self.projects = {} if projects is None else projects
 
     def project(self, name: str) -> _ProjectState:
         result = self.projects.get(name)
@@ -132,8 +129,9 @@ def get_config(start: Path = None) -> Mapping:
     if pyproject_path is None:
         return _default_config()["tool"]["poetry-dynamic-versioning"]
     pyproject = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
-    result = _deep_merge_dicts(_default_config(), pyproject)["tool"]["poetry-dynamic-versioning"]
-    return result
+    return _deep_merge_dicts(_default_config(), pyproject)["tool"][
+        "poetry-dynamic-versioning"
+    ]
 
 
 def _bump_version_per_config(version: _DUNAMAI_VERSION_ANY, bump: bool) -> _DUNAMAI_VERSION_ANY:
@@ -146,11 +144,10 @@ def _bump_version_per_config(version: _DUNAMAI_VERSION_ANY, bump: bool) -> _DUNA
 
     if version.stage is None:
         version.base = bump_version(version.base)
+    elif version.revision is None:
+        version.revision = 2
     else:
-        if version.revision is None:
-            version.revision = 2
-        else:
-            version.revision += 1
+        version.revision += 1
 
     return version
 
